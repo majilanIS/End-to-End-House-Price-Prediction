@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: house-price-api
+    runtime: image
+    image:
+      url: ghcr.io/majilanis/end-to-end-house-price-prediction:main
+    envVars:
+      - key: API_HOST
+        value: 0.0.0.0
+      - key: API_PORT
+        value: 8000
+      - key: RELOAD
+        value: "false"
+      - key: ALLOWED_ORIGINS
+        sync: false
+        value: https://majilanis.github.io
+    healthCheckPath: /health
+    autoDeploy: true

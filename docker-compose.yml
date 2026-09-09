@@ -1,4 +1,4 @@
-# Backend-only compose file. The frontend is deployed separately on Vercel.
+# Backend-only compose file. The frontend is deployed on GitHub Pages.
 #
 #   docker compose up --build -d
 #   open http://localhost:8000
@@ -14,5 +14,5 @@ services:
       API_HOST: 0.0.0.0
       API_PORT: 8000
       RELOAD: "false"
-      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:5173,https://majilanis.github.io}
     restart: unless-stopped
