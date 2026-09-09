@@ -70,15 +70,36 @@ same code, which is what stops the classic "works in the notebook, wrong in prod
 
 ```bash
 cd backend_house_prediction
-pip install -r requirements.txt
+
+# A project-local virtualenv keeps these dependencies off your global Python
+# and makes `python` unambiguous inside this folder.
+python -m venv .venv
+.venv\Scripts\activate            # Windows  (macOS/Linux: source .venv/bin/activate)
+
+pip install -r requirements.txt       # runtime: training + API
+pip install -r requirements-dev.txt   # optional: notebook, matplotlib, seaborn
 
 # Put the Price Paid CSV in data/ (see "Data" below), then:
 python -m src.train        # ~1 min; writes models/house_price_model.pkl
-python -m app.main         # serves http://127.0.0.1:8000/docs
+python -m app.main         # serves the API — see /docs
 ```
 
-`python -m app.main` reads host/port/reload from `.env`. The equivalent explicit form is
-`uvicorn app.main:app --reload`. Note it is `app.main` (a module path), not `main.py`.
+`python -m app.main` reads host, port and reload from `.env`.
+
+**If a command is "not recognized" or a module is missing**, the virtualenv is almost
+certainly not active — the shell is falling back to a different Python that lacks these
+packages. Either activate it, or call it directly without activating:
+
+```powershell
+.venv\Scripts\python.exe -m app.main
+```
+
+Two things that trip people up:
+
+- It is `app.main` (a *module path*), never `main.py`. `python -m main.py` fails.
+- `uvicorn app.main:app --reload` is equivalent, but only works when the venv is active,
+  because `uvicorn.exe` lives in `.venv\Scripts`. `python -m uvicorn app.main:app --reload`
+  works either way.
 
 ### Frontend
 
@@ -125,6 +146,39 @@ talks to one host, no CORS configuration is involved.
 The backend image ships the trained model, so **run `python -m src.train` once
 before `docker compose build`** — otherwise the API starts in "degraded" mode
 (see `/health`) and the frontend shows a warning banner.
+
+---
+
+## Deploying (Render, Fly, any Docker host)
+
+**The trained model is committed to the repo** (`models/house_price_model.pkl`, ~1.4 MB).
+That is deliberate. The training CSV is far too large for git, so a deploy host cannot
+retrain — it can only run what we ship. The model and the code that loads it therefore have
+to be versioned together.
+
+**scikit-learn is pinned exactly** (`scikit-learn==1.9.0`). A pickled sklearn Pipeline is
+not portable across minor versions: a model trained on 1.8 fails to load on 1.9 with the
+famously unhelpful
+
+```
+ModuleNotFoundError: No module named '_loss'
+```
+
+The bundle records the version that built it, and `load_bundle()` compares it against the
+installed one at startup, so a mismatch now reports the real cause instead of that message.
+The API stays up and marks itself `degraded` on `/health` rather than crash-looping.
+
+**When you change the pinned scikit-learn version you must retrain and commit the model:**
+
+```bash
+python -m src.train
+git add models/house_price_model.pkl models/metrics.json
+```
+
+> **If a deploy fails after the model looked fine locally, clear the host's build cache.**
+> A cached Docker layer can keep serving a model file from an older build, which is exactly
+> how a 1.8-pickled model ended up running against a 1.9 install. On Render:
+> *Manual Deploy → Clear build cache & deploy*.
 
 ---
 

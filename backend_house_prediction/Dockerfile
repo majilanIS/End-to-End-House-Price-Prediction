@@ -8,7 +8,7 @@ WORKDIR /app
 
 # Install runtime dependencies only — the image has no need for the notebook
 # stack (jupyter, matplotlib, seaborn), which is what keeps it small.
-COPY requirements-runtime.txt requirements.txt
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Only what the service needs at runtime: the package code and the trained model.

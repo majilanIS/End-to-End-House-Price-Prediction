@@ -14,23 +14,38 @@
     "sector"
   ],
   "target": "log1p(price)",
-  "trained_at": "2026-09-09T16:56:27+00:00",
+  "trained_at": "2026-09-09T19:51:06+00:00",
   "n_rows": 81066,
   "metrics": {
-    "R2_log": 0.699614791037462,
-    "RMSE_log": 0.34354633930043077,
-    "MAE_log": 0.25284490276475186,
-    "R2_GBP": 0.5834637357710866,
-    "MAE_GBP": 96991.20750515202,
-    "MdAPE_pct": 18.64465693274203,
-    "within_10pct": 28.826939681756507,
-    "within_20pct": 52.892561983471076,
-    "residual_std_log": 0.34353604638013735,
-    "train_R2_log": 0.7385879623132806,
-    "overfit_gap": 0.03897317127581856,
-    "fit_seconds": 9.5
+    "R2_log": 0.6997276287847454,
+    "RMSE_log": 0.3434818077672598,
+    "MAE_log": 0.25266467612842664,
+    "R2_GBP": 0.5839331998667971,
+    "MAE_GBP": 96968.50009564914,
+    "MdAPE_pct": 18.506868023915896,
+    "within_10pct": 28.99962994942642,
+    "within_20pct": 53.05291723202171,
+    "residual_std_log": 0.3434695301601504,
+    "train_R2_log": 0.7420763061607103,
+    "overfit_gap": 0.04234867737596493,
+    "fit_seconds": 15.4
   },
-  "cross_validation": null,
+  "cross_validation": {
+    "folds": 5,
+    "R2_per_fold": [
+      0.6998,
+      0.6957,
+      0.6894,
+      0.6842,
+      0.6962
+    ],
+    "R2_mean": 0.6930503912657153,
+    "R2_std": 0.005549111376853358,
+    "RMSE_log_mean": 0.346951157295096,
+    "MAE_log_mean": 0.2549764383695616
+  },
   "sklearn_pipeline": "StandardScaler + OneHotEncoder + TargetEncoder -> HistGradientBoosting",
-  "log_residual_std": 0.34353604638013735
+  "log_residual_std": 0.3434695301601504,
+  "sklearn_version": "1.9.0",
+  "python_version": "3.11.9"
 }

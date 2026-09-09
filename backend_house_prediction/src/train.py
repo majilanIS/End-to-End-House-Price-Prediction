@@ -1,5 +1,13 @@
 """Train, evaluate and persist the house price model.
 
+WHERE THE MODEL COMES FROM (the producer side):
+    1. load_raw()  -> clean()  -> add_features()   build X, y from the CSV
+    2. pick and fit the best of {Ridge, RandomForest, HistGradientBoosting}
+    3. cross-validate to prove the score isn't luck
+    4. REFIT THE WINNER ON 100% of the data (the hold-out was only for measuring)
+    5. joblib.dump(bundle)  ->  models/house_price_model.pkl
+       the bundle is the SINGLE ARTEFACT readers (predict.py / app.py) consume.
+
 Usage:
     python -m src.train                      # train on the default dataset
     python -m src.train --no-cv              # skip 5-fold CV (faster)
@@ -10,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import platform
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -17,6 +26,7 @@ from pathlib import Path
 import joblib
 import numpy as np
 import pandas as pd
+import sklearn
 from sklearn.ensemble import HistGradientBoostingRegressor, RandomForestRegressor
 from sklearn.linear_model import Ridge
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
@@ -167,6 +177,10 @@ def main() -> None:
     ])
     final_model.fit(X, np.log1p(y))
 
+    # The bundle is a plain dict that travels with the model everywhere it goes.
+    # predict.py unpacks it at runtime: "model" is what actually predicts,
+    # feature_columns tells it how to order inputs, location_lookup lets the API
+    # resolve places, and the metrics/interval fields drive the response UI.
     bundle = {
         "model": final_model,
         "model_name": best_name,
@@ -179,6 +193,10 @@ def main() -> None:
         "sklearn_pipeline": "StandardScaler + OneHotEncoder + TargetEncoder -> " + best_name,
         "location_lookup": location_lookup,
         "log_residual_std": float(table.loc[best_name, "residual_std_log"]),
+        # Recorded so a version mismatch can be reported clearly at load time
+        # instead of surfacing as a cryptic "No module named '_loss'".
+        "sklearn_version": sklearn.__version__,
+        "python_version": platform.python_version(),
     }
 
     args.out.parent.mkdir(parents=True, exist_ok=True)

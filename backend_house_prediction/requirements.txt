@@ -1,7 +1,17 @@
+# Runtime dependencies: everything needed to TRAIN the model and SERVE the API.
+# Notebook/plotting tools live in requirements-dev.txt so the Docker image stays small.
+
 # Core ML
 pandas>=2.2
 numpy>=1.26
-scikit-learn>=1.4        # TargetEncoder needs >=1.3
+# PINNED EXACTLY, on purpose. A pickled sklearn Pipeline is not portable across
+# minor releases: a bundle trained on 1.8 dies on 1.9 with
+# "ModuleNotFoundError: No module named '_loss'". An unpinned range means the
+# deploy host silently installs a newer sklearn than the one that built the model,
+# and the API fails at startup.
+# If you change this version, you MUST retrain (`python -m src.train`) and commit
+# the regenerated models/house_price_model.pkl.
+scikit-learn==1.9.0
 joblib>=1.3
 
 # API
@@ -9,9 +19,4 @@ fastapi>=0.110
 uvicorn[standard]>=0.29
 pydantic>=2.6
 python-dotenv>=1.0
-httpx>=0.27               # required by fastapi.testclient
-
-# Notebook / analysis
-jupyter>=1.0
-matplotlib>=3.8
-seaborn>=0.13
+httpx>=0.27              # required by fastapi.testclient

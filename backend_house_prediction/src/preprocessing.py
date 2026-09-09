@@ -1,5 +1,11 @@
 """Data loading, cleaning and feature engineering.
 
+ROLE IN THE FLOW: this is the ONE place where raw CSV rows become model features.
+- During training:    train.py calls load_raw -> clean -> add_features -> build_dataset
+- During prediction:  predict.py calls features_from_request -> add_features (same code!)
+That shared source of truth is what guarantees the features built at serving time are
+identical to the ones used in training, so the model sees exactly what it learned on.
+
 Single source of truth shared by the notebook, `train.py` and the FastAPI app,
 so the features built at serving time are identical to the ones used in training.
 """

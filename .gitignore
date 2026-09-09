@@ -1,7 +1,14 @@
 # ---------- Data & model artefacts ----------
 # Large CSVs are fetched, not committed (see README)
 backend_house_prediction/data/*.csv
-backend_house_prediction/models/*.pkl
+
+# The trained model IS committed (~1.5 MB), deliberately.
+# The training CSV is too big for git, so the deploy host cannot retrain — it can
+# only run what we ship. Leaving the artefact untracked meant Render served a
+# stale model baked into a cached Docker layer, pickled by an older scikit-learn
+# than the one requirements.txt installed, and the API died at startup.
+# Committing it keeps the model and the code that loads it versioned together.
+# Retrain + commit whenever the pinned scikit-learn version changes.
 backend_house_prediction/models/*.joblib
 
 # ---------- Python ----------

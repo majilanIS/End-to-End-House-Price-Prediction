@@ -1,0 +1,15 @@
+# Development extras: running the notebook and producing its plots.
+# Not installed in the Docker image — the API needs none of this to serve.
+#
+#   pip install -r requirements-dev.txt
+-r requirements.txt
+
+# Notebook / analysis
+jupyter>=1.0
+matplotlib>=3.8
+seaborn>=0.13
+
+# Executing the notebook headlessly (nbconvert --execute)
+nbconvert>=7.0
+nbformat>=5.9
+ipykernel>=6.29

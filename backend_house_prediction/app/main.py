@@ -1,5 +1,12 @@
 """FastAPI service exposing the trained house price model.
 
+THE MODEL'S JOURNEY (where the model comes from, end to end):
+    train.py  -->  house_price_model.pkl  -->  load_bundle()  -->  predict_one()
+    (fits &      (joblib bundle: the      (lru_cache, loads   (in /predict,
+     saves)       fitted pipeline +         the pickle once     turns a request
+                  metrics + location        at startup)         into a price)
+                  lookup)
+
 Run locally:
     uvicorn app.main:app --reload
 Interactive docs: http://127.0.0.1:8000/docs
@@ -27,8 +34,12 @@ async def lifespan(_: FastAPI):
     global _startup_error
     try:
         load_bundle()
-    except FileNotFoundError as exc:  # keep the app up so /health can report it
+    except (FileNotFoundError, RuntimeError) as exc:
+        # Stay up rather than crash-looping the container: /health then reports
+        # exactly what is wrong (missing model, or a scikit-learn version
+        # mismatch), which is far easier to diagnose than an exited process.
         _startup_error = str(exc)
+        print(f"WARNING: starting without a model — {exc}")
     yield
 
 
@@ -133,6 +144,8 @@ def root() -> dict:
 
 @app.get("/health", response_model=HealthResponse, tags=["meta"])
 def health() -> HealthResponse:
+    # The bundle loaded at startup is the source of truth: its model_name,
+    # trained_at and n_rows all come straight out of the saved pickle.
     if _startup_error is not None:
         return HealthResponse(status="degraded", model_loaded=False, detail=_startup_error)
     bundle = load_bundle()
@@ -188,6 +201,9 @@ def location(postcode: str) -> LocationResponse:
 
 @app.post("/predict", response_model=PredictionResponse, tags=["prediction"])
 def predict(request: PredictionRequest) -> PredictionResponse:
+    # Request -> validated pydantic model -> predict_one() runs the stored
+    # pipeline (fills features, predicts in log space, maps back to GBP) ->
+    # typed JSON response. Any internal failure becomes a clear 400, not a 500.
     if _startup_error is not None:
         raise HTTPException(status_code=503, detail=_startup_error)
     try:

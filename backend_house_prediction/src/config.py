@@ -1,5 +1,10 @@
 """Runtime configuration, read from environment variables / a `.env` file.
 
+ROLE IN THE FLOW: this single module feeds BOTH sides of the pipeline —
+    src/train.py           reads DATA_PATH / MODEL_PATH / RANDOM_STATE / TEST_SIZE / CV_FOLDS
+    app/main.py (+predict) reads MODEL_PATH / API_HOST / API_PORT / RELOAD / ALLOWED_ORIGINS
+If both halves agree on MODEL_PATH, the server loads exactly the file train.py saved.
+
 Every setting has a working default, so the app runs with no `.env` at all.
 Copy `.env.example` to `.env` to override anything locally.
 """
