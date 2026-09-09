@@ -32,7 +32,10 @@ DATA_PATH = Path(os.getenv("DATA_PATH", ROOT / "data" / "pp-monthly-update-new-v
 MODEL_PATH = Path(os.getenv("MODEL_PATH", ROOT / "models" / "house_price_model.pkl"))
 
 # ---- Server ---------------------------------------------------------------
-API_HOST = os.getenv("API_HOST", "127.0.0.1")
+# 0.0.0.0 by default so the server is reachable from outside any container
+# (Render/Docker), no matter how the process is started. Local dev can still
+# narrow it to 127.0.0.1 via `.env` or the API_HOST env var.
+API_HOST = os.getenv("API_HOST", "0.0.0.0")
 API_PORT = int(os.getenv("API_PORT", "8000"))
 RELOAD = _get_bool("RELOAD", False)
 
