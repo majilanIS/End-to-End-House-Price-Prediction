@@ -11,6 +11,7 @@ export default defineConfig(({ mode }) => {
   const apiRoutes = ['/predict', '/health', '/metrics', '/schema', '/location']
 
   return {
+    base: process.env.BASE_PATH || '/',
     plugins: [react()],
     server: {
       proxy: Object.fromEntries(
