@@ -1,0 +1,86 @@
+/* Design tokens. An explicit choice lives on <html data-theme="...">, always set
+   by the inline script in index.html (light = OS light OR user picked light).
+   Only the token values change, so no component knows which theme is active. */
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --bg: #f5f7fa;
+  --surface: #ffffff;
+  --border: #e4e9f0;
+
+  --text: #0f172a;
+  --text-soft: #334155;
+  --text-muted: #77839a;
+
+  --input-bg: #f8fafc;
+  --input-border: #cfd8e3;
+  --code-bg: #e7edf5;
+  --track: #e4e9f0;
+
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --accent-soft: #eff5ff;
+  --accent-soft-2: #bfdbfe;
+  --accent-border: #cfe0fd;
+
+  --ok-bg: #e7f7ed;
+  --ok-fg: #15803d;
+  --ok-border: #c3ecd2;
+
+  --warn-bg: #fdf6e3;
+  --warn-fg: #a16207;
+  --warn-border: #f2e3b4;
+
+  --danger-bg: #fdecec;
+  --danger-fg: #c02626;
+  --danger-border: #f6d0d0;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg: #0d1117;
+  --surface: #161b22;
+  --border: #262d38;
+
+  --text: #e6edf3;
+  --text-soft: #c2ccd8;
+  --text-muted: #8b96a5;
+
+  --input-bg: #0d1117;
+  --input-border: #313a46;
+  --code-bg: #21262d;
+  --track: #262d38;
+
+  --accent: #3b82f6;
+  --accent-hover: #2f74e0;
+  --accent-soft: #14213a;
+  --accent-soft-2: #1e40af;
+  --accent-border: #1e3a68;
+
+  --ok-bg: #0f2a1a;
+  --ok-fg: #4ade80;
+  --ok-border: #1c4030;
+
+  --warn-bg: #2a2210;
+  --warn-fg: #fbbf24;
+  --warn-border: #453718;
+
+  --danger-bg: #2c1416;
+  --danger-fg: #f87171;
+  --danger-border: #4a2126;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font-family:
+    system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}

@@ -1,0 +1,36 @@
+{
+  "model_name": "HistGradientBoosting",
+  "feature_columns": [
+    "property_type",
+    "old_new",
+    "duration",
+    "year",
+    "month",
+    "town_city",
+    "district",
+    "county",
+    "area",
+    "area_code",
+    "sector"
+  ],
+  "target": "log1p(price)",
+  "trained_at": "2026-09-09T16:56:27+00:00",
+  "n_rows": 81066,
+  "metrics": {
+    "R2_log": 0.699614791037462,
+    "RMSE_log": 0.34354633930043077,
+    "MAE_log": 0.25284490276475186,
+    "R2_GBP": 0.5834637357710866,
+    "MAE_GBP": 96991.20750515202,
+    "MdAPE_pct": 18.64465693274203,
+    "within_10pct": 28.826939681756507,
+    "within_20pct": 52.892561983471076,
+    "residual_std_log": 0.34353604638013735,
+    "train_R2_log": 0.7385879623132806,
+    "overfit_gap": 0.03897317127581856,
+    "fit_seconds": 9.5
+  },
+  "cross_validation": null,
+  "sklearn_pipeline": "StandardScaler + OneHotEncoder + TargetEncoder -> HistGradientBoosting",
+  "log_residual_std": 0.34353604638013735
+}

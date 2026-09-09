@@ -1,0 +1,18 @@
+# Backend-only compose file. The frontend is deployed separately on Vercel.
+#
+#   docker compose up --build -d
+#   open http://localhost:8000
+#
+# Configuration lives in the .env file next to this one (copy .env.example).
+services:
+  backend:
+    build: ./backend_house_prediction
+    image: house-price-api
+    ports:
+      - "${PORT:-8000}:8000"
+    environment:
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+      RELOAD: "false"
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000}
+    restart: unless-stopped

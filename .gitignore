@@ -1,1 +1,44 @@
-data/
+# ---------- Data & model artefacts ----------
+# Large CSVs are fetched, not committed (see README)
+backend_house_prediction/data/*.csv
+backend_house_prediction/models/*.pkl
+backend_house_prediction/models/*.joblib
+
+# ---------- Python ----------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Notebooks
+.ipynb_checkpoints/
+
+# ---------- Node / frontend ----------
+node_modules/
+frontend_house_prediction/dist/
+frontend_house_prediction/.vite/
+frontend_house_prediction/.vercel/
+npm-debug.log*
+yarn-error.log*
+
+# ---------- Editors / OS ----------
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# ---------- Environment ----------
+.env
+.env.*
+!.env.example
