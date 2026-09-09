@@ -3,7 +3,7 @@ services:
     name: house-price-api
     runtime: image
     image:
-      url: ghcr.io/majilanis/end-to-end-house-price-prediction:main
+      url: docker.io/chekoledocker/house-price-api:latest
     envVars:
       - key: API_HOST
         value: 0.0.0.0
