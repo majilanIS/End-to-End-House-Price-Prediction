@@ -1,4 +1,9 @@
-name: Build & Push Backend to GHCR
+name: Build & Push Backend to Docker Hub
+
+# Render pulls docker.io/chekoledocker/house-price-api:latest (see render.yaml),
+# so the image this workflow publishes MUST carry that tag — otherwise Render keeps
+# serving whatever was pushed by hand last, which is how a model pickled by
+# scikit-learn 1.8 ended up running against a 1.9 install in production.
 
 on:
   push:
@@ -10,25 +15,37 @@ on:
   workflow_dispatch:
 
 env:
-  IMAGE: ghcr.io/${{ github.repository }}
+  IMAGE: chekoledocker/house-price-api
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
 
     steps:
       - uses: actions/checkout@v4
+
+      # The image ships the trained model; the training CSV is too large for git,
+      # so the model cannot be regenerated here. Fail loudly and early rather than
+      # publishing an image whose API dies at startup with FileNotFoundError.
+      - name: Verify the trained model is committed
+        run: |
+          MODEL=backend_house_prediction/models/house_price_model.pkl
+          if [ ! -f "$MODEL" ]; then
+            echo "::error::$MODEL is missing from the repository."
+            echo "The Docker image would contain no model and the API would fail at startup."
+            echo "Fix: run 'python -m src.train' in backend_house_prediction/, then commit"
+            echo "     models/house_price_model.pkl (it must not be gitignored)."
+            exit 1
+          fi
+          echo "Model present: $(du -h "$MODEL" | cut -f1)"
 
       - uses: docker/setup-buildx-action@v3
 
       - uses: docker/login-action@v3
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          registry: docker.io
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Docker meta
         id: meta
@@ -36,11 +53,68 @@ jobs:
         with:
           images: ${{ env.IMAGE }}
           tags: |
-            type=ref,event=branch
+            type=raw,value=latest,enable={{is_default_branch}}
             type=semver,pattern={{version}}
             type=sha,prefix=
 
-      - uses: docker/build-push-action@v6
+      # Build locally first so the image can be smoke-tested BEFORE anything is
+      # published. Pushing first and testing after would leave a broken :latest
+      # on Docker Hub for Render to pull.
+      - name: Build image for testing
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend_house_prediction
+          load: true
+          tags: house-price-api:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # This is the step that would have caught the production failure: it proves
+      # the model actually loads under the scikit-learn version in the image.
+      - name: Smoke test the image
+        run: |
+          docker run -d --name ci-test -p 8000:8000 house-price-api:ci
+
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8000/health > /tmp/health.json 2>/dev/null; then
+              break
+            fi
+            sleep 2
+          done
+
+          if [ ! -s /tmp/health.json ]; then
+            echo "::error::Container never became healthy."
+            docker logs ci-test
+            exit 1
+          fi
+
+          echo "Health response:"
+          cat /tmp/health.json
+          echo
+
+          # "degraded" means the app started but could not load the model — most
+          # often a scikit-learn version mismatch. Treat it as a failed build.
+          STATUS=$(python3 -c "import json;print(json.load(open('/tmp/health.json'))['status'])")
+          LOADED=$(python3 -c "import json;print(json.load(open('/tmp/health.json'))['model_loaded'])")
+          if [ "$STATUS" != "ok" ] || [ "$LOADED" != "True" ]; then
+            echo "::error::API is $STATUS (model_loaded=$LOADED) — refusing to publish."
+            docker logs ci-test
+            exit 1
+          fi
+
+          # A real prediction end to end, including the postcode -> location lookup.
+          PRICE=$(curl -fsS -X POST http://127.0.0.1:8000/predict \
+            -H 'Content-Type: application/json' \
+            -d '{"postcode":"NW10 0DY","property_type":"F","old_new":"N","duration":"L","year":2026,"month":6}' \
+            | python3 -c "import json,sys;print(json.load(sys.stdin)['predicted_price'])")
+          echo "Prediction check: GBP $PRICE"
+
+          docker logs ci-test
+          docker stop ci-test
+
+      # Cache is warm from the test build, so this is effectively just the push.
+      - name: Push image
+        uses: docker/build-push-action@v6
         with:
           context: ./backend_house_prediction
           push: true
@@ -48,3 +122,11 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Summary
+        run: |
+          echo "### Backend image published" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "Render pulls \`${{ env.IMAGE }}:latest\` — trigger a deploy to pick it up." >> $GITHUB_STEP_SUMMARY
