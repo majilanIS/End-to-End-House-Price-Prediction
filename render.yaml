@@ -13,6 +13,6 @@ services:
         value: "false"
       - key: ALLOWED_ORIGINS
         sync: false
-        value: https://majilanis.github.io
+        value: https://majilanis.github.io,https://end-to-end-house-price-prediction-ten.vercel.app
     healthCheckPath: /health
     autoDeploy: true
