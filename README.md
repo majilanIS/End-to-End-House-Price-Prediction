@@ -1,7 +1,7 @@
 # House Price Prediction — End to End
 
 Predicts UK residential sale prices from [HM Land Registry Price Paid Data](https://www.gov.uk/government/statistical-data-sets/price-paid-data-downloads),
-served through a FastAPI backend with a React frontend.
+served through a **FastAPI backend** (shipped as a Docker image) with a **React frontend** (deployed to static hosting).
 
 | | |
 |---|---|
@@ -12,50 +12,76 @@ served through a FastAPI backend with a React frontend.
 
 ---
 
-## Project structure
+## Architecture
 
 ```
-House Price Prediction end-to-end/
-│
-├── backend_house_prediction/
-│   ├── notebooks/
-│   │   └── house_price_prediction.ipynb   # EDA, model comparison, validation
-│   │
-│   ├── src/
-│   │   ├── config.py                      # settings from .env
-│   │   ├── preprocessing.py               # cleaning + features (shared by training AND API)
-│   │   ├── train.py                       # trains, validates, writes the model bundle
-│   │   └── predict.py                     # loads the bundle, returns a price
-│   │
+                    ┌──────────────────────────────────────────────┐
+                    │           GitHub Pages (static SPA)          │
+                    │   https://<user>.github.io/<repo>/            │
+                    │   built by .github/workflows/frontend-pages … │
+                    └──────────────────────┬───────────────────────┘
+                                           │  HTTPS
+                                           │  CORS allow-list checked
+                    ┌──────────────────────▼───────────────────────┐
+                    │     Render service – Docker image backend    │
+                    │   https://house-price-api-latest-1.onrender… │
+                    │   FastAPI  (uvicorn, port 8000)              │
+                    └───────────────┬──────────────┬───────────────┘
+                                    │              │
+                             ┌──────▼─────┐  ┌─────▼──────────┐
+                             │  Model     │  │ Postcode →     │
+                             │ pipeline   │  │ location map   │
+│ (joblib)   │  │ (2,246 areas) │
+                             └────────────┘  └────────────────┘
+```
+
+Two independent deploys, one contract (the HTTP API):
+
+| Piece | Where it runs | Built by | Public URL |
+|---|---|---|---|
+| **Frontend** (React SPA) | GitHub Pages | `frontend-pages.yml` (GitHub Actions) | `https://<user>.github.io/<repo>/` |
+| **Backend** (FastAPI + model) | Render, running `chekoledocker/house-price-api` image | `backend-docker.yml` or `docker build` / Docker Hub | `https://house-price-api-latest-1.onrender.com` |
+
+Both are configured to work together out of the box. The frontend is a **static bundle**: the API URL is baked into its JavaScript at build time (`VITE_API_BASE_URL`) — never put secrets there.
+
+---
+
+## Repository layout
+
+```
+.
+├── backend_house_prediction/          # FastAPI service, training, model
 │   ├── app/
-│   │   └── main.py                        # FastAPI
-│   │
-│   ├── models/
-│   │   ├── house_price_model.pkl          # joblib bundle (git-ignored)
-│   │   └── metrics.json                   # scores of the saved model
-│   │
-│   ├── data/                              # raw + cleaned CSVs (git-ignored)
-│   ├── .env / .env.example
-│   ├── .dockerignore
-│   ├── requirements.txt
-│   └── Dockerfile
-│
-├── frontend_house_prediction/             # React + Vite
+│   │   └── main.py                    # FastAPI application
 │   ├── src/
-│   │   ├── api.js                         # backend client
-│   │   ├── App.jsx                        # prediction form + result + theme toggle
-│   │   ├── App.css
-│   │   └── index.css                      # design tokens, light + dark
-│   ├── .env / .env.example
-│   ├── .dockerignore
-│   ├── Dockerfile                         # builds the SPA, serves it via nginx
-│   ├── nginx.conf                         # static files + API reverse proxy
-│   ├── package.json
-│   └── vite.config.js
+│   │   ├── config.py                  # settings from env / .env (shared)
+│   │   ├── preprocessing.py           # cleaning + features (shared)
+│   │   ├── train.py                   # trains, validates, writes the bundle
+│   │   └── predict.py                 # loads the bundle, returns a price
+│   ├── models/
+│   │   ├── house_price_model.pkl      # joblib bundle (committed, ~1.5 MB)
+│   │   └── metrics.json               # scores of the saved model
+│   ├── data/                          # raw + cleaned CSVs (git-ignored)
+│   ├── .env.example                   # copy to .env for local overrides
+│   ├── requirements.txt
+│   └── Dockerfile                     # ships src/ + app/ + models/
 │
-├── docker-compose.yml                     # one-origin deployment of both halves
-├── .env.example                           # vars for docker compose
-├── .gitignore
+├── frontend_house_prediction/         # React + Vite SPA
+│   ├── src/
+│   │   ├── api.js                     # backend client (BASE_URL handling)
+│   │   ├── App.jsx                    # form + result + theme toggle
+│   │   └── App.css / index.css        # design tokens, light + dark
+│   ├── .env.example
+│   ├── package.json
+│   └── vite.config.js                 # dev proxy → backend
+│
+├── .github/workflows/
+│   ├── backend-docker.yml             # build + push backend image (Docker Hub)
+│   └── frontend-pages.yml             # build + deploy frontend to GitHub Pages
+│
+├── docker-compose.yml                 # local backend with one command
+├── render.yaml                        # Render blueprint (documentation/starter)
+├── .env.example                       # vars for docker compose
 └── README.md
 ```
 
@@ -64,121 +90,216 @@ same code, which is what stops the classic "works in the notebook, wrong in prod
 
 ---
 
-## Quick start
+## Prerequisites
 
-### Backend
+- **Python 3.11+** and `pip`
+- **Node 20+** and `npm`
+- **Docker** (optional — for the containerized backend)
+
+No database, no external services required to run locally: the model and the postcode
+lookup ship inside the repository.
+
+---
+
+## Quick start (local, without Docker)
+
+### 1. Backend
 
 ```bash
 cd backend_house_prediction
-
-# A project-local virtualenv keeps these dependencies off your global Python
-# and makes `python` unambiguous inside this folder.
 python -m venv .venv
 .venv\Scripts\activate            # Windows  (macOS/Linux: source .venv/bin/activate)
 
-pip install -r requirements.txt       # runtime: training + API
-pip install -r requirements-dev.txt   # optional: notebook, matplotlib, seaborn
-
-# Put the Price Paid CSV in data/ (see "Data" below), then:
-python -m src.train        # ~1 min; writes models/house_price_model.pkl
-python -m app.main         # serves the API — see /docs
+pip install -r requirements.txt
+python -m app.main                # serves the API on http://localhost:8000
 ```
 
-`python -m app.main` reads host, port and reload from `.env`.
+Open **http://localhost:8000/docs** for an interactive API explorer, or smoke-test:
 
-**If a command is "not recognized" or a module is missing**, the virtualenv is almost
-certainly not active — the shell is falling back to a different Python that lacks these
-packages. Either activate it, or call it directly without activating:
-
-```powershell
-.venv\Scripts\python.exe -m app.main
+```bash
+curl http://localhost:8000/health          # {"status":"ok","model_loaded":true,...}
 ```
 
-Two things that trip people up:
+Notes that trip people up:
 
-- It is `app.main` (a *module path*), never `main.py`. `python -m main.py` fails.
-- `uvicorn app.main:app --reload` is equivalent, but only works when the venv is active,
-  because `uvicorn.exe` lives in `.venv\Scripts`. `python -m uvicorn app.main:app --reload`
-  works either way.
+- It is `python -m app.main` (a module path), never `main.py`.
+- `uvicorn app.main:app --reload` is equivalent but only works while the venv is active.
+- The venv ships **no training data** — a trained model is already committed, so you can
+  serve immediately. To retrain, see [Retraining the model](#-retraining-the-model).
 
-### Frontend
+### 2. Frontend
 
 ```bash
 cd frontend_house_prediction
 npm install
-npm run dev                            # http://localhost:5173
+npm run dev                        # http://localhost:5173
 ```
 
-The backend already allows `localhost:5173` via CORS. For deployment, set
-`ALLOWED_ORIGINS="https://your-domain.com"` rather than widening it to `*`.
-
-The frontend has a light/dark theme toggle in the header. The first visit follows
-your OS preference; picking a theme manually saves it in `localStorage`.
-
-### Docker (single service)
-
-```bash
-cd backend_house_prediction
-python -m src.train                    # the image copies models/ in, it does not train
-docker build -t house-price-api .
-docker run -p 8000:8000 house-price-api
-```
-
-### Docker Compose (full app, one origin — recommended for deployment)
-
-```bash
-cp .env.example .env                   # optional; all values have defaults
-docker compose up --build -d
-# open http://localhost:8080
-```
-
-This builds both halves and serves the whole app on **one origin**: nginx serves
-the static frontend and reverse-proxies `/health`, `/schema`, `/metrics`,
-`/location` and `/predict` to the FastAPI backend. Because the browser only ever
-talks to one host, no CORS configuration is involved.
-
-| Variable | Default | Purpose |
-|---|---|---|
-| `PORT` | `8080` | public port of the app |
-| `VITE_API_BASE_URL` | *(empty)* | empty → proxied through nginx; set only if the API lives elsewhere |
-| `ALLOWED_ORIGINS` | `http://localhost:8080` | CORS origins (unused while proxied) |
-
-The backend image ships the trained model, so **run `python -m src.train` once
-before `docker compose build`** — otherwise the API starts in "degraded" mode
-(see `/health`) and the frontend shows a warning banner.
+In development the SPA proxies API calls to `http://127.0.0.1:8000` (see `vite.config.js`),
+so the browser stays on one origin and **CORS never applies**.
 
 ---
 
-## Deploying (Render, Fly, any Docker host)
-
-**The trained model is committed to the repo** (`models/house_price_model.pkl`, ~1.4 MB).
-That is deliberate. The training CSV is far too large for git, so a deploy host cannot
-retrain — it can only run what we ship. The model and the code that loads it therefore have
-to be versioned together.
-
-**scikit-learn is pinned exactly** (`scikit-learn==1.9.0`). A pickled sklearn Pipeline is
-not portable across minor versions: a model trained on 1.8 fails to load on 1.9 with the
-famously unhelpful
-
-```
-ModuleNotFoundError: No module named '_loss'
-```
-
-The bundle records the version that built it, and `load_bundle()` compares it against the
-installed one at startup, so a mismatch now reports the real cause instead of that message.
-The API stays up and marks itself `degraded` on `/health` rather than crash-looping.
-
-**When you change the pinned scikit-learn version you must retrain and commit the model:**
+## Run the backend with Docker
 
 ```bash
-python -m src.train
+cp .env.example .env               # optional; every value has a default
+docker compose up --build -d
+curl http://localhost:8000/health
+```
+
+`docker-compose.yml` runs only the **backend** (the frontend is static hosting — see
+[Deploying](#deploying)). It mounts no model of its own: the Docker image copies
+`models/` in at build time.
+
+| Root `.env` var | Default | Purpose |
+|---|---|---|
+| `PORT` | `8000` | public port of the API |
+| `ALLOWED_ORIGINS` | `http://localhost:5173,https://majilanis.github.io` | CORS origins the backend allows |
+
+---
+
+## Deploying
+
+> The trained model is committed to the repo (`models/house_price_model.pkl`, ~1.5 MB).
+> That is deliberate: the training CSV is far too large for git, so a deploy host cannot
+> retrain — it can only run what we ship. **The model and the code that loads it are
+> versioned together.**
+
+### Backend → Render (Docker image)
+
+1. **Publish the image.** On `main`, `.github/workflows/backend-docker.yml` builds the
+   image, smoke-tests `/health` + `/predict` inside the container, and pushes
+   `chekoledocker/house-price-api:latest` to Docker Hub. It needs two repo secrets:
+   - `DOCKERHUB_USERNAME` — your Docker Hub username
+   - `DOCKERHUB_TOKEN` — an access token from <https://hub.docker.com/settings/security>
+
+   (Or publish manually: `docker build -t chekoledocker/house-price-api ./backend_house_prediction && docker push chekoledocker/house-price-api`.)
+
+2. **Create the Render service.** Render → *New → Web Service → Deploy an existing image*,
+   image `docker.io/chekoledocker/house-price-api:latest`. Set the env vars below and
+   health check path `/health`.
+
+3. **Redeploy.** After every image push: *Manual Deploy → Clear build cache & deploy*.
+   A cached Docker layer can keep serving a model file from an older build — clearing
+   cache is the reliable way to avoid exactly that.
+
+Backend env vars on Render:
+
+| Variable | Value |
+|---|---|
+| `API_HOST` | `0.0.0.0` |
+| `API_PORT` | `8000` |
+| `RELOAD` | `false` |
+| `ALLOWED_ORIGINS` | see below |
+
+> `render.yaml` in this repo documents this setup, but its env values are `sync: false` —
+> you must set `ALLOWED_ORIGINS` in the Render dashboard for it to take effect.
+
+**`ALLOWED_ORIGINS` must list every origin that calls the API from a browser.** For the
+frontends used in this project:
+
+```
+https://<user>.github.io,https://end-to-end-house-price-prediction-ten.vercel.app,http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173
+```
+
+### Frontend → GitHub Pages
+
+1. Enable Pages at *repo → Settings → Pages* (Source: GitHub Actions).
+2. On `main`, `.github/workflows/frontend-pages.yml`:
+   - injects `BASE_PATH=/<repo>/` (Pages is served under a sub-path),
+   - injects `VITE_API_BASE_URL=<backend-url>` (baked into the built JS),
+   - uploads `frontend_house_prediction/dist` and deploys it.
+
+The workflow's `VITE_API_BASE_URL` is the one and only place to point the frontend at a
+backend. Change it, push, and Pages re-deploys.
+
+---
+
+## Verification checklist
+
+After a deploy, hit the public backend `https://house-price-api-latest-1.onrender.com`:
+
+| Endpoint | Method | Expect |
+|---|---|---|
+| `/health` | GET | `status:"ok"`, `model_loaded:true`, and your frontend origin inside `config.allowed_origins` |
+| `/schema` | GET | `{property_type, old_new, duration}` code maps |
+| `/metrics` | GET | hold-out + cross-validation scores of the deployed model |
+| `/predict` | POST | a JSON price with `predicted_price` and a confidence band |
+| `/predict/batch` | POST | array of up to 500 predictions |
+| `/docs` | GET | Swagger UI loads |
+
+```bash
+curl -X POST https://house-price-api-latest-1.onrender.com/predict \
+  -H "Content-Type: application/json" \
+  -d '{"postcode":"NW10 0DY","property_type":"F","old_new":"N","duration":"L","year":2026,"month":6}'
+# {"predicted_price":379621.38,"lower_bound":269267.09,"upper_bound":535202.23,...}
+```
+
+Frontend checklist:
+
+- Open the Pages URL and confirm the green "HistGradientBoosting" badge appears
+  (it comes from `/health`).
+- Submit the form — the estimate renders with `MdAPE` accuracy note.
+- If the badge shows a warning or a JSON error, open DevTools → Network and confirm
+  requests go to the Render URL (not relative paths) — a missing `VITE_API_BASE_URL`
+  is almost always the cause.
+
+---
+
+## Configuration
+
+Both halves read a `.env` file; both run without one. Copy the examples to start:
+
+```bash
+cp backend_house_prediction/.env.example  backend_house_prediction/.env
+cp frontend_house_prediction/.env.example frontend_house_prediction/.env
+cp .env.example .env                      # for docker compose (root)
+```
+
+**Backend** (`backend_house_prediction/.env`) — real environment variables always win, so a
+container's settings are never overridden by a stray file.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `API_HOST` / `API_PORT` | `0.0.0.0` / `8000` | where the server binds |
+| `RELOAD` | `false` | auto-reload on code changes (development only) |
+| `ALLOWED_ORIGINS` | Vite dev + preview | comma-separated CORS origins |
+| `MODEL_PATH` | `models/house_price_model.pkl` | model bundle to serve |
+| `DATA_PATH` | `data/pp-monthly-update-new-version.csv` | training data (retrain only) |
+| `RANDOM_STATE` / `TEST_SIZE` / `CV_FOLDS` | `42` / `0.2` / `5` | training knobs |
+
+**Frontend** (`frontend_house_prediction/.env`) — only `VITE_`-prefixed variables reach the
+browser, and they are baked into the built JavaScript. Never put secrets here.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `VITE_API_BASE_URL` | *(empty)* | Empty → relative paths + the Vite dev proxy (browser stays on one origin, no CORS). Set it (e.g. `https://api.your-domain.com`) for a deployed build — then add that frontend's origin to the backend's `ALLOWED_ORIGINS`. |
+| `VITE_DEV_API_TARGET` | `http://127.0.0.1:8000` | where the dev proxy forwards |
+
+---
+
+## Retraining the model
+
+**Only do this if the data changed or the pinned scikit-learn version changed.**
+
+```bash
+cd backend_house_prediction
+.venv\Scripts\activate
+python -m src.train          # ~1 min; loads data/, compares models, writes the bundle
 git add models/house_price_model.pkl models/metrics.json
 ```
 
-> **If a deploy fails after the model looked fine locally, clear the host's build cache.**
-> A cached Docker layer can keep serving a model file from an older build, which is exactly
-> how a 1.8-pickled model ended up running against a 1.9 install. On Render:
-> *Manual Deploy → Clear build cache & deploy*.
+That pkl `IS` your deployment. After committing, run the pipeline again
+(CI → Docker Hub → Render), because the hosted backend cannot retrain itself.
+
+> **Scikit-learn is pinned exactly** (`scikit-learn==1.9.0`). A pickled sklearn Pipeline is
+> not portable across minor versions: a 1.8-trained model fails to load on 1.9 with the
+> famously unhelpful `ModuleNotFoundError: No module named '_loss'`. The bundle records the
+> version that built it and `load_bundle()` compares it at startup — a mismatch now reports
+> the real cause instead. If the API ever says `degraded` on `/health` or dies with `_loss`:
+> your deployed model predates your installed scikit-learn. Retrain and commit as above,
+> then redeploy — and if Render still serves the old model, *Clear build cache & deploy*.
 
 ---
 
@@ -200,10 +321,10 @@ It ships **without a header row**; the 16-column schema is defined in
 
 | Method | Path | Purpose |
 |---|---|---|
-| `GET`  | `/health` | is the model loaded, when was it trained, active config |
-| `GET`  | `/schema` | valid category codes, so a client can build a form |
-| `GET`  | `/metrics` | hold-out and cross-validation scores of the deployed model |
-| `GET`  | `/location/{postcode}` | resolve a postcode to town / district / county |
+| `GET` | `/health` | is the model loaded, when was it trained, active config |
+| `GET` | `/schema` | valid category codes, so a client can build a form |
+| `GET` | `/metrics` | hold-out and cross-validation scores of the deployed model |
+| `GET` | `/location/{postcode}` | resolve a postcode to town / district / county |
 | `POST` | `/predict` | price + confidence interval for one property |
 | `POST` | `/predict/batch` | up to 500 properties per call |
 
@@ -219,9 +340,9 @@ curl -X POST http://127.0.0.1:8000/predict \
 
 ```json
 {
-  "predicted_price": 367209.44,
-  "lower_bound": 260446.00,
-  "upper_bound": 517738.00,
+  "predicted_price": 379621.38,
+  "lower_bound": 269267.09,
+  "upper_bound": 535202.23,
   "currency": "GBP",
   "model_name": "HistGradientBoosting",
   "location_source": "postcode_lookup",
@@ -245,37 +366,6 @@ GBP — matching how price uncertainty actually behaves.
 **Field codes** — `property_type`: `D` detached, `S` semi-detached, `T` terraced,
 `F` flat/maisonette, `O` other · `old_new`: `Y` new build, `N` established ·
 `duration`: `F` freehold, `L` leasehold.
-
----
-
-## Configuration
-
-Both halves read a `.env` file; both run without one. Copy the examples to start:
-
-```bash
-cp backend_house_prediction/.env.example  backend_house_prediction/.env
-cp frontend_house_prediction/.env.example frontend_house_prediction/.env
-```
-
-**Backend** (`backend_house_prediction/.env`) — real environment variables always win, so
-a container's settings are never overridden by a stray file.
-
-| Variable | Default | Purpose |
-|---|---|---|
-| `API_HOST` / `API_PORT` | `127.0.0.1` / `8000` | where the server binds |
-| `RELOAD` | `false` | auto-reload on code changes (development only) |
-| `ALLOWED_ORIGINS` | Vite dev + preview | comma-separated CORS origins |
-| `MODEL_PATH` | `models/house_price_model.pkl` | model bundle to serve |
-| `DATA_PATH` | `data/pp-monthly-update-new-version.csv` | training data |
-| `RANDOM_STATE`, `TEST_SIZE`, `CV_FOLDS` | `42`, `0.2`, `5` | training knobs |
-
-**Frontend** (`frontend_house_prediction/.env`) — only `VITE_`-prefixed variables reach the
-browser, and they are baked into the built JavaScript, so never put secrets here.
-
-| Variable | Default | Purpose |
-|---|---|---|
-| `VITE_API_BASE_URL` | *(empty)* | Empty → relative paths + the Vite dev proxy, so the browser stays on one origin and CORS never applies. Set it (e.g. `https://api.your-domain.com`) for a deployed build — then add that app's origin to the backend's `ALLOWED_ORIGINS`. |
-| `VITE_DEV_API_TARGET` | `http://127.0.0.1:8000` | where the dev proxy forwards |
 
 ---
 
