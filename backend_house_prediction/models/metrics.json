@@ -14,7 +14,7 @@
     "sector"
   ],
   "target": "log1p(price)",
-  "trained_at": "2026-09-09T19:51:06+00:00",
+  "trained_at": "2026-09-13T11:26:51+00:00",
   "n_rows": 81066,
   "metrics": {
     "R2_log": 0.6997276287847454,
@@ -28,7 +28,7 @@
     "residual_std_log": 0.3434695301601504,
     "train_R2_log": 0.7420763061607103,
     "overfit_gap": 0.04234867737596493,
-    "fit_seconds": 15.4
+    "fit_seconds": 11.2
   },
   "cross_validation": {
     "folds": 5,
